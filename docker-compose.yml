@@ -17,6 +17,8 @@ services:
       - "max_replication_slots=10"
       - "-c"
       - "max_wal_senders=10"
+    networks:
+      - kafka_network
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -25,6 +27,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks:
+      - kafka_network
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -36,10 +40,13 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+    networks:
+      - kafka_network
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
@@ -53,9 +60,13 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:9092"
       SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
       SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+    networks:
+      - kafka_network
 
   debezium:
     image: debezium/connect:2.5
+    hostname: debezium
+    container_name: mini-data-platform-debezium-1
     depends_on:
       - kafka
       - postgres
@@ -63,7 +74,7 @@ services:
     ports:
       - "8083:8083"
     environment:
-      BOOTSTRAP_SERVERS: kafka:9092
+      BOOTSTRAP_SERVERS: kafka:29092
       GROUP_ID: 1
       CONFIG_STORAGE_TOPIC: my_connect_configs
       OFFSET_STORAGE_TOPIC: my_connect_offsets
@@ -77,6 +88,40 @@ services:
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+    networks:
+      - kafka_network
+  spark:
+    image: bitnami/spark:3.5.0
+    container_name: spark
+    hostname: spark
+
+    depends_on:
+      - kafka
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark
+    ports:
+      - "8080:8080"  # Spark UI
+      - "7077:7077"  # Spark master port
+    volumes:
+      - ./app:/app
+    networks:
+      - kafka_network
+
+  spark-worker-1:
+    image: bitnami/spark:3.5
+    container_name: spark-worker-1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+    ports:
+      - "8084:8081"
+    networks:
+      - kafka_network
 
 volumes:
   pgdata:
+
+networks:
+  kafka_network:
+    driver: bridge
