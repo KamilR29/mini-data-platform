@@ -113,6 +113,3 @@ Projekt edukacyjny pokazujący:
 - integrację Kafka + PostgreSQL
 - pracę z Docker Compose
 
-## Autor
-
-Projekt wykonany w ramach nauki platform danych i systemów streamingowych.
