@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   postgres:
     image: postgres:16
@@ -10,13 +12,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     command:
-      - "postgres"
-      - "-c"
-      - "wal_level=logical"
-      - "-c"
-      - "max_replication_slots=10"
-      - "-c"
-      - "max_wal_senders=10"
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
     networks:
       - kafka_network
 
@@ -50,23 +52,19 @@ services:
 
   schema-registry:
     image: confluentinc/cp-schema-registry:7.5.0
-    hostname: schema-registry
-    container_name: mini-data-platform-schema-registry-1
     depends_on:
       - kafka
     ports:
       - "8081:8081"
     environment:
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "PLAINTEXT://kafka:29092"
-      SCHEMA_REGISTRY_HOST_NAME: "schema-registry"
-      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     networks:
       - kafka_network
 
   debezium:
     image: debezium/connect:2.5
-    hostname: debezium
-    container_name: mini-data-platform-debezium-1
     depends_on:
       - kafka
       - postgres
@@ -75,16 +73,15 @@ services:
       - "8083:8083"
     environment:
       BOOTSTRAP_SERVERS: kafka:29092
-      GROUP_ID: 1
-      CONFIG_STORAGE_TOPIC: my_connect_configs
-      OFFSET_STORAGE_TOPIC: my_connect_offsets
-      STATUS_STORAGE_TOPIC: my_connect_statuses
+      GROUP_ID: debezium-group
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_statuses
       KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
       CONNECT_REST_ADVERTISED_HOST_NAME: debezium
-      CONNECT_GROUP_ID: debezium-group
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
@@ -110,16 +107,16 @@ services:
     image: apache/spark:3.5.1
     container_name: spark-master
     user: root
-    command:
-      - /bin/sh
-      - -c
-      - |
-        mkdir -p /tmp/ivy/cache /tmp/ivy/jars
-        chown -R spark:spark /tmp/ivy
-        exec setpriv --reuid=spark --regid=spark --clear-groups /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    command: >
+      bash -c "
+      mkdir -p /tmp/ivy/cache /tmp/ivy/jars &&
+      chown -R spark:spark /tmp/ivy &&
+      exec setpriv --reuid=spark --regid=spark --clear-groups
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      "
     ports:
-      - "8080:8080"
       - "7077:7077"
+      - "8080:8080"
     volumes:
       - ./:/work
       - spark_ivy:/tmp/ivy
@@ -128,15 +125,14 @@ services:
 
   spark-worker:
     image: apache/spark:3.5.1
-    container_name: spark-worker
     depends_on:
       - spark-master
-    command:
-      - /bin/sh
-      - -lc
-      - |
-        mkdir -p /tmp/ivy/cache /tmp/ivy/jars
-        exec /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    command: >
+      bash -c "
+      mkdir -p /tmp/ivy/cache /tmp/ivy/jars &&
+      exec /opt/spark/bin/spark-class
+      org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+      "
     ports:
       - "8084:8081"
     volumes:
@@ -171,7 +167,17 @@ services:
       - ./:/work
       - /var/run/docker.sock:/var/run/docker.sock
     entrypoint: /bin/bash
-    command: -c "airflow db migrate && airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com"
+    command: >
+      -c "
+      airflow db migrate &&
+      airflow users create
+      --username admin
+      --password admin
+      --firstname admin
+      --lastname admin
+      --role Admin
+      --email admin@example.com
+      "
     networks:
       - kafka_network
 
@@ -180,17 +186,14 @@ services:
       context: .
       dockerfile: airflow/Dockerfile
     depends_on:
-      - airflow-db
       - airflow-init
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-      S3_ENDPOINT: "http://minio:9000"
-      S3_KEY: "minio"
-      S3_SECRET: "minio12345"
-
+      S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio12345
     ports:
       - "8088:8080"
     volumes:
@@ -206,15 +209,13 @@ services:
       context: .
       dockerfile: airflow/Dockerfile
     depends_on:
-      - airflow-db
       - airflow-init
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db:5432/airflow
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      S3_ENDPOINT: "http://minio:9000"
-      S3_KEY: "minio"
-      S3_SECRET: "minio12345"
+      S3_ENDPOINT: http://minio:9000
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio12345
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./:/work
@@ -223,11 +224,33 @@ services:
     networks:
       - kafka_network
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.2
+    depends_on:
+      - minio
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio12345
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root s3://mlflow/
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - kafka_network
+
 volumes:
   pgdata:
   minio_data:
   spark_ivy:
   airflow_db:
+  mlflow_data:
 
 networks:
   kafka_network:
