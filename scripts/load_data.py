@@ -39,9 +39,9 @@ def main():
 
     # Lista plików i odpowiadających im tabel
     files_tables = {
-        "../data/customers.csv": "customers",
-        "../data/products.csv": "products",
-        "../data/orders.csv": "orders",
+        "data/customers.csv": "customers",
+        "data/products.csv": "products",
+        "data/orders.csv": "orders",
     }
 
     for csv_path, table_name in files_tables.items():

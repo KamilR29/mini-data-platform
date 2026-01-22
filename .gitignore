@@ -1,0 +1,80 @@
+# =====================
+# Python
+# =====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# =====================
+# Virtual environment
+# =====================
+.venv/
+venv/
+ENV/
+
+# =====================
+# IDE / Editors
+# =====================
+.idea/
+.vscode/
+*.iml
+
+# =====================
+# OS files
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# Logs
+# =====================
+*.log
+logs/
+
+# =====================
+# Airflow
+# =====================
+airflow/logs/
+airflow/plugins/__pycache__/
+airflow/dags/__pycache__/
+
+# =====================
+# Spark
+# =====================
+spark-warehouse/
+*.crc
+
+# =====================
+# Data files (lokalne dane)
+# =====================
+data/*.csv
+data/*.parquet
+data/*.json
+
+# =====================
+# QA / reports (wyniki testów, walidacji)
+# =====================
+qa/reports/
+
+# =====================
+# Docker
+# =====================
+*.env
+.env
+
+# =====================
+# Kafka / runtime
+# =====================
+kafka-data/
+zookeeper-data/
+
+# =====================
+# Temporary files
+# =====================
+tmp/
+.cache/
