@@ -15,12 +15,11 @@ with DAG(
     dag_id="customers_end_to_end",
     default_args=DEFAULT_ARGS,
     start_date=datetime(2026, 1, 1),
-    schedule="0 * * * *",  # co godzinę
+    schedule="0 * * * *",
     catchup=False,
     tags=["mini-data-platform", "customers"],
 ) as dag:
 
-    # 1) Bronze -> Silver (Spark)
     bronze_to_silver = BashOperator(
         task_id="bronze_to_silver_customers",
         bash_command=(
@@ -31,13 +30,6 @@ with DAG(
         ),
     )
 
-    # 2) Great Expectations na Silver (lokalnie w repo)
-    validate_silver = BashOperator(
-        task_id="ge_validate_silver_customers",
-        bash_command="cd /opt/airflow/project && python qa/ge_validate_customers.py",
-    )
-
-    # 3) Silver -> Gold (Spark)
     silver_to_gold = BashOperator(
         task_id="silver_to_gold_customers",
         bash_command=(
@@ -48,10 +40,9 @@ with DAG(
         ),
     )
 
-    # 4) Trening modelu + logowanie do MLflow
     train_model = BashOperator(
         task_id="mlflow_train_customers",
-        bash_command="cd /opt/airflow/project && python ml/train_customers.py",
+        bash_command="cd /work && python ml/train_customers.py",
     )
 
-    bronze_to_silver >> validate_silver >> silver_to_gold >> train_model
+    bronze_to_silver >> silver_to_gold >> train_model

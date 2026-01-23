@@ -2,7 +2,7 @@ FROM apache/airflow:2.9.3
 
 USER root
 
-# Docker CLI w wersji zgodnej z Docker Desktop (API >= 1.44)
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg \
     && install -m 0755 -d /etc/apt/keyrings \
@@ -15,10 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies do QA (Great Expectations + czytanie z MinIO)
+
 USER airflow
 RUN pip install --no-cache-dir \
       great-expectations==1.8.1 \
       pandas \
       s3fs \
-      pyarrow
+      pyarrow \
+      mlflow==2.14.2
+
+
+ENV PATH="/home/airflow/.local/bin:${PATH}"

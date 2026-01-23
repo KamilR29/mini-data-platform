@@ -32,7 +32,7 @@ def main():
         .getOrCreate()
     )
 
-    # Schema zgodny z Twoim silver
+
     silver_schema = StructType([
         StructField("customer_id", IntegerType(), True),
         StructField("age", IntegerType(), True),
@@ -48,7 +48,7 @@ def main():
 
     df = spark.read.schema(silver_schema).parquet(SILVER_PATH)
 
-    # Podstawowe KPI + kilka sensownych pod ML / raport
+
     kpis = df.agg(
         count("*").alias("rows_total"),
         countDistinct("customer_id").alias("customers_distinct"),
@@ -62,8 +62,7 @@ def main():
         fmax("ts_ms").alias("max_ts_ms"),
     )
 
-    # Możesz też dopisać KPI per kraj lub płeć
-    # np. df.groupBy("country").agg(count("*").alias("rows")).write...
+
 
     kpis.write.mode("overwrite").json(GOLD_PATH)
 

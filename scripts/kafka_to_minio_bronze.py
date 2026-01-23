@@ -50,7 +50,7 @@ def main():
         bootstrap_servers=BOOTSTRAP,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
-        group_id="bronze-writer-v1",  # ważne: stały group id, ale przy debug możesz zmienić na nowy
+        group_id="bronze-writer-v1",  
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
@@ -62,9 +62,9 @@ def main():
 
     for msg in consumer:
         topic = msg.topic
-        value = msg.value  # tu masz już dict
+        value = msg.value
 
-        # Zwykły rekord customers + metadane
+        
         record = {
             "topic": topic,
             "kafka_ts": msg.timestamp,
@@ -77,7 +77,7 @@ def main():
 
         if due_by_count or due_by_time:
             prefix = now_prefix()
-            table = topic  # "customers"
+            table = topic  
             object_name = f"{table}/{prefix}/part-{file_seq:06d}.jsonl"
 
             rows_to_write = buffers[topic]

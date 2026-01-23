@@ -2,12 +2,12 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType
 
-# 1️⃣ Spark Session
+
 spark = SparkSession.builder \
     .appName("KafkaSparkOrdersStreaming") \
     .getOrCreate()
 
-# 2️⃣ Schema → uwzględnia payload.after
+
 json_schema = StructType([
     StructField("payload", StructType([
         StructField("after", StructType([
@@ -19,7 +19,7 @@ json_schema = StructType([
     ]))
 ])
 
-# 3️⃣ Kafka source
+
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "kafka:29092") \

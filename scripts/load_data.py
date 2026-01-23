@@ -8,7 +8,7 @@ DB_NAME = "mydb"
 DB_USER = "postgres"
 DB_PASS = "postgres"
 
-# Funkcja do załadowania danych do PostgreSQL
+
 def load_csv_to_postgres(csv_path, table_name, conn):
     df = pd.read_csv(csv_path)
     columns = df.columns
@@ -16,11 +16,11 @@ def load_csv_to_postgres(csv_path, table_name, conn):
 
     cursor = conn.cursor()
 
-    # Tworzymy tabelę dynamicznie
+
     cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
     cursor.execute(f"CREATE TABLE {table_name} ({column_defs});")
 
-    # Wstawiamy dane
+
     for row in df.itertuples(index=False, name=None):
         placeholders = ','.join(['%s'] * len(row))
         cursor.execute(
@@ -32,12 +32,12 @@ def load_csv_to_postgres(csv_path, table_name, conn):
     print(f"Loaded data into table '{table_name}'.")
 
 def main():
-    # Połączenie z bazą
+
     conn = psycopg2.connect(
         host=DB_HOST, port=DB_PORT, dbname=DB_NAME, user=DB_USER, password=DB_PASS
     )
 
-    # Lista plików i odpowiadających im tabel
+
     files_tables = {
         "data/customers.csv": "customers",
         "data/products.csv": "products",

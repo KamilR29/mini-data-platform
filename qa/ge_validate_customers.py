@@ -24,33 +24,46 @@ def load_silver_customers() -> pd.DataFrame:
 def main() -> None:
     df = load_silver_customers()
 
-    context = gx.get_context()
+   
+    context = gx.get_context(context_root_dir="/work/great_expectations")
 
-    # Data Docs (HTML): qa/reports/data_docs/index.html
-    data_docs_dir = os.path.join(os.path.dirname(__file__), "reports", "data_docs")
-    context.variables.data_docs_sites = {
-        "local_site": {
-            "class_name": "SiteBuilder",
-            "show_how_to_buttons": False,
-            "store_backend": {
-                "class_name": "TupleFilesystemStoreBackend",
-                "base_directory": data_docs_dir,
-            },
-            "site_index_builder": {"class_name": "DefaultSiteIndexBuilder"},
-        }
-    }
-    context._save_project_config()
-
-    datasource = context.sources.add_or_update_pandas(name="pandas")
-    asset = datasource.add_dataframe_asset(name="silver_customers_asset")
-    batch_request = asset.build_batch_request(dataframe=df)
 
     suite_name = "customers_silver_suite"
-    context.add_or_update_expectation_suite(expectation_suite_name=suite_name)
+    try:
+        suite = context.get_expectation_suite(suite_name)
+    except Exception:
+        suite = context.add_expectation_suite(suite_name)
+
+
+    from great_expectations.core.batch import RuntimeBatchRequest
+
+    batch_request = RuntimeBatchRequest(
+        datasource_name="runtime_pandas",
+        data_connector_name="runtime_data_connector",
+        data_asset_name="silver_customers_asset",
+        runtime_parameters={"batch_data": df},
+        batch_identifiers={"default_identifier_name": "default"},
+    )
+
+
+    try:
+        context.get_datasource("runtime_pandas")
+    except Exception:
+        context.add_datasource(
+            name="runtime_pandas",
+            class_name="Datasource",
+            execution_engine={"class_name": "PandasExecutionEngine"},
+            data_connectors={
+                "runtime_data_connector": {
+                    "class_name": "RuntimeDataConnector",
+                    "batch_identifiers": ["default_identifier_name"],
+                }
+            },
+        )
 
     validator = context.get_validator(
         batch_request=batch_request,
-        expectation_suite_name=suite_name,
+        expectation_suite=suite,
     )
 
     expected_cols = [
@@ -66,11 +79,16 @@ def main() -> None:
         "ts_ms",
     ]
 
+
+
     validator.expect_table_row_count_to_be_between(min_value=1, max_value=None)
     validator.expect_table_columns_to_match_ordered_list(expected_cols)
 
     validator.expect_column_values_to_not_be_null("customer_id")
+
+
     validator.expect_column_values_to_be_unique("customer_id")
+
 
     validator.expect_column_values_to_be_between("age", min_value=0, max_value=120, mostly=0.99)
     validator.expect_column_values_to_be_in_set("gender", ["Male", "Female"], mostly=0.95)
@@ -82,15 +100,13 @@ def main() -> None:
     validator.expect_column_values_to_be_in_set("churn", [0, 1], mostly=0.99)
     validator.expect_column_values_to_be_in_set("op", ["c", "u", "d", "r"], mostly=0.95)
 
-    # ts_ms: waliduj tylko jeśli faktycznie jest zasilane (ma choć jedną niepustą wartość)
     if "ts_ms" in df.columns:
         non_null_ratio = float(df["ts_ms"].notna().mean())
         if non_null_ratio > 0.0:
-            # jeśli już jest zasilane, oczekujemy że zwykle będzie kompletne
             validator.expect_column_values_to_not_be_null("ts_ms", mostly=0.95)
             validator.expect_column_values_to_be_between("ts_ms", min_value=0, max_value=None, mostly=0.95)
         else:
-            print("WARN: ts_ms is 100% NULL in this batch, skipping ts_ms expectations (no CDC metadata).")
+            print("WARN: ts_ms is 100% NULL, skipping ts_ms expectations.")
 
     result = validator.validate()
 
@@ -98,11 +114,7 @@ def main() -> None:
     with open("qa/reports/customers_validation.json", "w", encoding="utf-8") as f:
         json.dump(result.to_json_dict(), f, ensure_ascii=False, indent=2)
 
-    context.build_data_docs()
-
     print("SUCCESS:", result.success)
-    print("Validation JSON: qa/reports/customers_validation.json")
-    print(f"Data Docs HTML: {data_docs_dir}/index.html")
 
     if not result.success:
         for r in result.results:
@@ -110,6 +122,7 @@ def main() -> None:
                 print("FAILED:", r.expectation_config.expectation_type, r.expectation_config.kwargs)
 
     raise SystemExit(0 if result.success else 1)
+
 
 
 if __name__ == "__main__":
