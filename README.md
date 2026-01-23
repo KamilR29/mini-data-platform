@@ -1,115 +1,129 @@
-# Mini Data Platform (Kafka • Debezium • Spark • PostgreSQL)
+# Mini Data Platform – Customers Pipeline
 
-Projekt przedstawia prostą platformę danych opartą na architekturze streamingowej. Dane trafiają do PostgreSQL, są przechwytywane przez Debezium, publikowane w Apache Kafka i przetwarzane strumieniowo przez Apache Spark.
+Projekt przedstawia prostą, lokalną platformę danych opartą o Dockera. Pokazuje pełny przepływ danych od źródła, przez warstwy Bronze/Silver/Gold, walidację jakości, aż po trening modelu i logowanie wyników w MLflow.
 
-Całość uruchamiana jest lokalnie za pomocą Docker Compose.
+Całość działa lokalnie i jest uruchamiana przez `docker-compose`.
 
-## Architektura
+---
 
-1. PostgreSQL przechowuje dane źródłowe (customers, products, orders)
-2. Debezium monitoruje zmiany w bazie i publikuje je do Kafka
-3. Apache Kafka pełni rolę brokera zdarzeń
-4. Apache Spark (Structured Streaming) konsumuje dane z Kafka
-5. Dane są wyświetlane w czasie rzeczywistym w konsoli
+## Architektura (w skrócie)
 
-## Struktura katalogów
+- PostgreSQL – źródło danych (opcjonalnie)
+- Kafka – transport zdarzeń (customers)
+- MinIO (S3) – warstwy danych:
+  - bronze – dane surowe
+  - silver – dane oczyszczone
+  - gold – dane do ML
+  - mlflow – artefakty modeli
+- Spark – transformacje danych
+- Great Expectations – walidacja jakości danych
+- Airflow – orkiestracja pipeline’u
+- MLflow – tracking eksperymentów i modeli
 
-```
-kamilr29-mini-data-platform/
-├── docker-compose.yml
-├── requirements.txt
-├── app/
-│   ├── spark_customers_streaming.py
-│   ├── spark_orders_streaming.py
-│   └── spark_products_streaming.py
-├── data/
-│   ├── customers.csv
-│   ├── orders.csv
-│   └── products.csv
-└── scripts/
-    ├── kafka_json_consumer.py
-    └── load_data.py
-```
+---
 
 ## Wymagania
 
-- Docker + Docker Compose
-- Python 3.9+
-- Wolne porty: 5432, 8080, 8081, 8083, 9092
+- Docker
+- Docker Compose
+- Wolne porty: 8080, 8088, 9000, 9001, 5001
+
+---
 
 ## Uruchomienie projektu
 
-### 1. Start infrastruktury
+### 1. Zatrzymanie starych kontenerów
 
 ```bash
-docker-compose up -d
+docker compose down
 ```
 
-Spowoduje to uruchomienie:
-- PostgreSQL
-- Zookeeper
-- Kafka
-- Schema Registry
-- Debezium
-- Spark Master + Worker
-
-### 2. Instalacja zależności Pythona
+Aby wystartować całkowicie od zera (usunąć wolumeny):
 
 ```bash
-pip install -r requirements.txt
+docker compose down -v
 ```
 
-### 3. Załadowanie danych do PostgreSQL
+---
+
+### 2. Budowa obrazów Airflow
 
 ```bash
-cd scripts
-python load_data.py
+docker compose build airflow-init airflow-webserver airflow-scheduler
 ```
 
-Po tej operacji tabele zostaną utworzone i wypełnione danymi z plików CSV.
+---
 
-### 4. Sprawdzenie danych w Kafka (opcjonalnie)
+### 3. Start platformy
 
 ```bash
-python kafka_json_consumer.py
+docker compose up -d
 ```
 
-Skrypt nasłuchuje topiców tworzonych przez Debezium i wypisuje zdarzenia w formacie JSON.
-
-### 5. Uruchomienie Spark Streaming
-
-W osobnych terminalach:
+Sprawdzenie statusu:
 
 ```bash
-docker exec -it spark spark-submit /app/spark_customers_streaming.py
-docker exec -it spark spark-submit /app/spark_products_streaming.py
-docker exec -it spark spark-submit /app/spark_orders_streaming.py
+docker compose ps
 ```
 
-W konsoli pojawią się dane przetwarzane w czasie rzeczywistym.
+---
 
-## Kafka Topics
+## Dostępne interfejsy
 
-Debezium publikuje zdarzenia do topiców:
-- dbserver1.public.customers
-- dbserver1.public.products
-- dbserver1.public.orders
+- Airflow: http://localhost:8088  
+  login: admin / admin
 
-Każdy komunikat zawiera strukturę `payload.after` z aktualnym stanem rekordu.
+- Spark UI: http://localhost:8080
 
-## Spark
+- MinIO: http://localhost:9001  
+  login: minio / minio12345
 
-Spark używa Structured Streaming:
-- źródło: Kafka
-- format danych: JSON
-- tryb: append
-- output: console
+- MLflow: http://localhost:5001
 
-## Cel projektu
+---
 
-Projekt edukacyjny pokazujący:
-- CDC (Change Data Capture) z Debezium
-- przetwarzanie strumieniowe w Spark
-- integrację Kafka + PostgreSQL
-- pracę z Docker Compose
+## Buckety w MinIO
 
+Przed uruchomieniem pipeline’u należy utworzyć buckety:
+
+- bronze
+- silver
+- gold
+- mlflow
+
+Można to zrobić ręcznie przez UI MinIO.
+
+---
+
+## Pipeline Airflow
+
+DAG: `customers_end_to_end`
+
+Kolejne kroki:
+1. Bronze → Silver (Spark)
+2. Walidacja danych Silver (Great Expectations)
+3. Silver → Gold (Spark)
+4. Trening modelu + logowanie do MLflow
+
+Pipeline można uruchomić ręcznie lub działa on cyklicznie co godzinę.
+
+---
+
+## Walidacja danych
+
+Walidacja wykonywana jest na danych Silver przy użyciu Great Expectations.
+W przypadku błędu jakości danych DAG zostaje zatrzymany.
+
+---
+
+## Trening modelu
+
+Model trenowany jest na danych Gold.
+Metryki oraz artefakty zapisywane są w MLflow, a artefakty trafiają do MinIO.
+
+---
+
+## Charakter projektu
+
+Projekt ma charakter edukacyjny i demonstracyjny.
+Pokazuje pełny, spójny flow danych w architekturze typu data platform.
